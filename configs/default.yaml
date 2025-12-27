@@ -1,0 +1,128 @@
+# LLM Alpha - Default Configuration
+
+# Data settings
+data:
+  # Default download directory
+  output_dir: "data"
+  # Default symbols to download
+  default_symbols:
+    - BTCUSDT
+    - ETHUSDT
+    - BNBUSDT
+    - SOLUSDT
+    - XRPUSDT
+  # Download settings
+  download:
+    proxy: "http://127.0.0.1:7890"
+    use_proxy: true
+    concurrency: 100
+    retries: 3
+    months: 12
+  # Data types to include
+  include:
+    klines: true
+    metrics: true
+    funding_rate: true
+    premium_index: true
+    mark_price: false
+    index_price: false
+
+# Backtest settings
+backtest:
+  # Default backtest parameters
+  init_cash: 10000
+  fees: 0.0008
+  slippage: 0.001
+  # Default timeframe
+  freq: "1h"
+  # Minimum trades required
+  min_trades: 50
+
+# Optimization settings
+optimize:
+  # Optuna settings
+  n_trials: 500
+  timeout: 3600  # seconds
+  n_jobs: -1  # -1 = all CPUs
+  # Study settings
+  sampler: "tpe"  # tpe, random, cmaes
+  pruner: "median"  # median, hyperband, none
+
+# Walk-Forward validation settings
+walk_forward:
+  # Default split ratio
+  train_ratio: 0.6
+  val_ratio: 0.2
+  test_ratio: 0.2
+  # Minimum sharpe requirements
+  min_sharpe: 0.5
+  # Decay threshold (val/test should be >= train * decay_threshold)
+  decay_threshold: 0.5
+
+# Rolling window validation settings
+rolling:
+  # Window sizes in hours
+  train_window: 2160  # 3 months
+  test_window: 720    # 1 month
+  step: 720           # 1 month
+  # Minimum positive sharpe ratio
+  min_positive_ratio: 0.6
+
+# Knowledge base settings
+knowledge:
+  # Database path
+  db_path: "data/knowledge.db"
+  # Auto-save results
+  auto_save: true
+
+# Logging settings
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/crypto_lab.log"
+
+# Research settings
+research:
+  # Hypothesis directory
+  hypotheses_dir: "hypotheses"
+  # Validated strategies directory
+  strategies_dir: "strategies"
+
+# Agent settings (LLM-driven research)
+agent:
+  # LLM provider settings
+  llm:
+    provider: "openai"  # openai, anthropic, ollama, deepseek
+    model: "gpt-5.2"
+    temperature: 0.5
+    max_tokens: 16000
+    # API keys can be set via environment variables:
+    # OPENAI_API_KEY, ANTHROPIC_API_KEY, DEEPSEEK_API_KEY
+
+  # Iteration settings
+  max_iterations: 20
+  max_consecutive_failures: 5
+  improvement_threshold: 0.1  # 10% improvement threshold
+
+  # Generation settings
+  generation_type: "strategy"  # factor, signal, strategy
+
+  # Validation settings
+  validation:
+    mode: "full"  # quick, full, wf_only, rolling_only
+    min_sharpe: 0.5
+    min_trades: 50
+    decay_threshold: 0.5
+    min_positive_ratio: 0.6
+
+  # Early stopping conditions
+  early_stop_sharpe: 1.5
+  early_stop_success_count: 3
+
+  # Safety settings
+  sandbox_timeout: 120  # seconds
+  max_code_lines: 200
+
+  # Learning settings
+  learn_from_failures: true
+  include_similar_hypotheses: 5
