@@ -2,6 +2,7 @@
 Tests for the Agent module.
 """
 
+import os
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -17,10 +18,10 @@ class TestAgentConfig:
         """Test default configuration values."""
         config = AgentConfig()
 
-        assert config.max_iterations == 10
-        assert config.max_consecutive_failures == 3
+        assert config.max_iterations == 20
+        assert config.max_consecutive_failures == 5
         assert config.early_stop_sharpe == 1.5
-        assert config.sandbox_timeout == 60
+        assert config.sandbox_timeout == 120
         assert config.generation_type == "strategy"
 
     def test_llm_config(self):
@@ -298,3 +299,142 @@ total = df['a'].sum()
 
         assert result.success is False
         assert result.error is not None
+
+
+class TestQwenProvider:
+    """Test Qwen provider integration."""
+
+    def test_qwen_config(self):
+        """Test Qwen provider can be configured in LLMConfig."""
+        config = LLMConfig(
+            provider="qwen",
+            model="qwen-turbo",
+            temperature=0.7,
+        )
+
+        assert config.provider == "qwen"
+        assert config.model == "qwen-turbo"
+        assert config.temperature == 0.7
+
+    def test_get_provider_qwen(self):
+        """Test get_provider function can create QwenProvider."""
+        from llmalpha.agent.providers.base import get_provider
+
+        # Mock environment variable to avoid requiring real API key
+        with patch.dict("os.environ", {"QWEN_API_KEY": "test-api-key"}):
+            provider = get_provider(
+                provider_name="qwen",
+                model="qwen-turbo",
+                api_key="test-api-key",
+            )
+
+            assert provider.name == "qwen"
+            assert provider.model == "qwen-turbo"
+            assert provider.api_key == "test-api-key"
+            assert provider.base_url == "https://dashscope.aliyuncs.com/compatible-mode/v1"
+
+    def test_get_provider_qwen_custom_base_url(self):
+        """Test QwenProvider with custom base_url."""
+        from llmalpha.agent.providers.base import get_provider
+
+        custom_url = "https://custom-qwen-endpoint.com/v1"
+        with patch.dict("os.environ", {"QWEN_API_KEY": "test-api-key"}):
+            provider = get_provider(
+                provider_name="qwen",
+                model="qwen-plus",
+                api_key="test-api-key",
+                base_url=custom_url,
+            )
+
+            assert provider.name == "qwen"
+            assert provider.model == "qwen-plus"
+            assert provider.base_url == custom_url
+
+    def test_qwen_provider_missing_api_key(self):
+        """Test QwenProvider raises error when API key is missing."""
+        from llmalpha.agent.providers.qwen import QwenProvider
+
+        # Clear environment variable
+        with patch.dict("os.environ", {}, clear=True):
+            with pytest.raises(ValueError, match="Qwen API key required"):
+                QwenProvider(model="qwen-turbo")
+
+    @pytest.mark.asyncio
+    async def test_qwen_provider_complete(self):
+        """Test QwenProvider complete method with mocked client."""
+        from llmalpha.agent.providers.qwen import QwenProvider
+
+        # Mock response
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Hello from Qwen"
+        mock_response.choices[0].finish_reason = "stop"
+        mock_response.model = "qwen-turbo"
+        mock_response.usage = MagicMock()
+        mock_response.usage.prompt_tokens = 10
+        mock_response.usage.completion_tokens = 5
+        mock_response.usage.total_tokens = 15
+
+        # Mock client
+        mock_client = AsyncMock()
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+        with patch.dict("os.environ", {"QWEN_API_KEY": "test-api-key"}):
+            provider = QwenProvider(model="qwen-turbo", api_key="test-api-key")
+            provider.client = mock_client
+
+            messages = [Message(role="user", content="Hello")]
+            response = await provider.complete(messages)
+
+            assert response.content == "Hello from Qwen"
+            assert response.model == "qwen-turbo"
+            assert response.usage["prompt_tokens"] == 10
+            assert response.usage["completion_tokens"] == 5
+            assert response.usage["total_tokens"] == 15
+            assert response.finish_reason == "stop"
+
+            # Verify client was called correctly
+            mock_client.chat.completions.create.assert_called_once()
+            call_args = mock_client.chat.completions.create.call_args
+            assert call_args.kwargs["model"] == "qwen-turbo"
+            assert call_args.kwargs["messages"] == [{"role": "user", "content": "Hello"}]
+
+    @pytest.mark.asyncio
+    async def test_qwen_provider_complete_stream(self):
+        """Test QwenProvider complete_stream method with mocked client."""
+        from llmalpha.agent.providers.qwen import QwenProvider
+
+        # Mock streaming response chunks
+        mock_chunk1 = MagicMock()
+        mock_chunk1.choices = [MagicMock()]
+        mock_chunk1.choices[0].delta.content = "Hello"
+        mock_chunk2 = MagicMock()
+        mock_chunk2.choices = [MagicMock()]
+        mock_chunk2.choices[0].delta.content = " from"
+        mock_chunk3 = MagicMock()
+        mock_chunk3.choices = [MagicMock()]
+        mock_chunk3.choices[0].delta.content = " Qwen"
+
+        async def mock_stream():
+            for chunk in [mock_chunk1, mock_chunk2, mock_chunk3]:
+                yield chunk
+
+        # Mock client
+        mock_client = AsyncMock()
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_stream())
+
+        with patch.dict("os.environ", {"QWEN_API_KEY": "test-api-key"}):
+            provider = QwenProvider(model="qwen-turbo", api_key="test-api-key")
+            provider.client = mock_client
+
+            messages = [Message(role="user", content="Hello")]
+            response = await provider.complete_stream(messages, print_output=False)
+
+            assert response.content == "Hello from Qwen"
+            assert response.model == "qwen-turbo"
+            assert response.finish_reason == "stop"
+
+            # Verify client was called with stream=True
+            mock_client.chat.completions.create.assert_called_once()
+            call_args = mock_client.chat.completions.create.call_args
+            assert call_args.kwargs["stream"] is True

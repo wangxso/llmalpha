@@ -4,8 +4,10 @@ Agent Configuration for LLM Alpha.
 Defines configuration classes for the LLM research agent.
 """
 
+import yaml
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Literal, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -13,7 +15,7 @@ from pydantic import BaseModel, Field
 class LLMConfig(BaseModel):
     """LLM provider configuration."""
 
-    provider: Literal["openai", "anthropic", "ollama", "deepseek"] = "openai"
+    provider: Literal["openai", "anthropic", "ollama", "deepseek", "qwen"] = "openai"
     model: str = "gpt-5.2"
     temperature: float = 0.5
     max_tokens: int = 16000
@@ -74,6 +76,31 @@ class AgentConfig(BaseModel):
     # Paths
     data_dir: str = "data"
     db_path: str = "data/knowledge.db"
+
+    @classmethod
+    def from_yaml(cls, path: Union[Path, str]) -> "AgentConfig":
+        """
+        Load AgentConfig from YAML file.
+
+        Args:
+            path: Path to YAML configuration file
+
+        Returns:
+            AgentConfig instance with values from YAML, or defaults if file doesn't exist
+        """
+        path = Path(path)
+        if not path.exists():
+            return cls()
+
+        with open(path) as f:
+            data = yaml.safe_load(f) or {}
+
+        # Extract agent section from YAML
+        agent_data = data.get("agent", {})
+        if not agent_data:
+            return cls()
+
+        return cls(**agent_data)
 
 
 @dataclass

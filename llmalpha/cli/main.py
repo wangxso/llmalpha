@@ -384,20 +384,48 @@ def agent():
 @agent.command("research")
 @click.option("--requirements", "-r", default="Find profitable trading strategies", help="Research requirements")
 @click.option("--category", "-c", default=None, help="Strategy category (momentum, mean_reversion, etc.)")
-@click.option("--iterations", "-n", default=20, help="Max iterations")
-@click.option("--max-failures", "-f", default=5, help="Max consecutive failures before stopping")
-@click.option("--provider", "-p", default="openai", help="LLM provider (openai, anthropic, ollama, deepseek)")
-@click.option("--model", "-m", default="gpt-5.2", help="Model name")
+@click.option("--iterations", "-n", default=None, help="Max iterations (defaults to config file value)")
+@click.option("--max-failures", "-f", default=None, help="Max consecutive failures before stopping (defaults to config file value)")
+@click.option("--provider", "-p", default=None, help="LLM provider (openai, anthropic, ollama, deepseek, qwen). Defaults to config file value.")
+@click.option("--model", "-m", default=None, help="Model name (defaults to config file value)")
 @click.option("--base-url", default=None, help="Custom API base URL (e.g., https://api.gptsapi.net)")
-@click.option("--api-key", default=None, help="API key (or use env var OPENAI_API_KEY)")
-@click.option("--data-dir", "-d", default="data", help="Data directory")
-@click.option("--db-path", default="data/knowledge.db", help="Knowledge base path")
-@click.option("--early-stop-sharpe", default=1.5, help="Stop if Sharpe reaches this value")
+@click.option("--api-key", default=None, help="API key (or use env var, defaults to config file value)")
+@click.option("--data-dir", "-d", default=None, help="Data directory (defaults to config file value)")
+@click.option("--db-path", default=None, help="Knowledge base path (defaults to config file value)")
+@click.option("--early-stop-sharpe", default=None, help="Stop if Sharpe reaches this value (defaults to config file value)")
 @click.option("--immersive/--no-immersive", default=True, help="Enable immersive exploration UI")
 def run_research(requirements, category, iterations, max_failures, provider, model, base_url, api_key, data_dir, db_path, early_stop_sharpe, immersive):
     """Run LLM-driven strategy research."""
     import asyncio
     from llmalpha.agent import create_researcher, AgentConfig, LLMConfig
+
+    # Create researcher first to get actual config values (will load defaults from config file if args are None)
+    researcher_kwargs = {
+        "auto_download_data": True,
+        "immersive": immersive,
+    }
+    if provider is not None:
+        researcher_kwargs["provider"] = provider
+    if model is not None:
+        researcher_kwargs["model"] = model
+    if api_key is not None:
+        researcher_kwargs["api_key"] = api_key
+    if base_url is not None:
+        researcher_kwargs["base_url"] = base_url
+    if data_dir is not None:
+        researcher_kwargs["data_dir"] = data_dir
+    if db_path is not None:
+        researcher_kwargs["db_path"] = db_path
+    if iterations is not None:
+        researcher_kwargs["max_iterations"] = int(iterations)
+    if max_failures is not None:
+        researcher_kwargs["max_consecutive_failures"] = int(max_failures)
+    if category is not None:
+        researcher_kwargs["category"] = category
+    if early_stop_sharpe is not None:
+        researcher_kwargs["early_stop_sharpe"] = float(early_stop_sharpe)
+
+    researcher = create_researcher(**researcher_kwargs)
 
     # Only show basic header in non-immersive mode
     # In immersive mode, the reporter will show a nice banner
@@ -405,29 +433,14 @@ def run_research(requirements, category, iterations, max_failures, provider, mod
         click.echo("\n" + "=" * 60)
         click.echo("LLM Alpha - Autonomous Research")
         click.echo("=" * 60)
-        click.echo(f"Provider: {provider}")
-        click.echo(f"Model: {model}")
-        if base_url:
-            click.echo(f"Base URL: {base_url}")
-        click.echo(f"Category: {category or 'general'}")
-        click.echo(f"Max Iterations: {iterations}")
-        click.echo(f"Max Consecutive Failures: {max_failures}")
+        click.echo(f"Provider: {researcher.config.llm.provider}")
+        click.echo(f"Model: {researcher.config.llm.model}")
+        if researcher.config.llm.base_url:
+            click.echo(f"Base URL: {researcher.config.llm.base_url}")
+        click.echo(f"Category: {researcher.config.category or 'general'}")
+        click.echo(f"Max Iterations: {researcher.config.max_iterations}")
+        click.echo(f"Max Consecutive Failures: {researcher.config.max_consecutive_failures}")
         click.echo("=" * 60 + "\n")
-
-    # Create researcher
-    researcher = create_researcher(
-        provider=provider,
-        model=model,
-        api_key=api_key,
-        base_url=base_url,
-        data_dir=data_dir,
-        db_path=db_path,
-        max_iterations=iterations,
-        max_consecutive_failures=max_failures,
-        category=category,
-        early_stop_sharpe=early_stop_sharpe,
-        immersive=immersive,
-    )
 
     # Run research
     async def _run():
@@ -438,7 +451,6 @@ def run_research(requirements, category, iterations, max_failures, provider, mod
 
     try:
         result = asyncio.run(_run())
-
         # Only print summary in non-immersive mode
         # In immersive mode, the reporter already showed the summary
         if not immersive:

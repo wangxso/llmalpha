@@ -190,7 +190,7 @@ def get_provider(
     Factory function to create LLM provider.
 
     Args:
-        provider_name: Provider name ("openai", "anthropic", "ollama", "deepseek")
+        provider_name: Provider name ("openai", "anthropic", "ollama", "deepseek", "qwen")
         model: Model identifier
         api_key: API key (if required)
         base_url: Base URL (for Ollama or custom endpoints)
@@ -202,6 +202,8 @@ def get_provider(
     Raises:
         ValueError: If provider is not supported
     """
+    print(provider_name, model, api_key, base_url, kwargs)
+    print("--------------------------------")
     if provider_name == "openai":
         from llmalpha.agent.providers.openai import OpenAIProvider
         return OpenAIProvider(model=model, api_key=api_key, **kwargs)
@@ -213,6 +215,10 @@ def get_provider(
     elif provider_name == "deepseek":
         from llmalpha.agent.providers.deepseek import DeepSeekProvider
         return DeepSeekProvider(model=model, api_key=api_key, base_url=base_url, **kwargs)
+
+    elif provider_name == "qwen":
+        from llmalpha.agent.providers.qwen import QwenProvider
+        return QwenProvider(model=model, api_key=api_key, base_url=base_url, **kwargs)
 
     elif provider_name == "ollama":
         from llmalpha.agent.providers.ollama import OllamaProvider

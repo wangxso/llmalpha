@@ -92,12 +92,12 @@ research:
 agent:
   # LLM provider settings
   llm:
-    provider: "openai"  # openai, anthropic, ollama, deepseek
-    model: "gpt-5.2"
+    provider: "qwen"  # openai, anthropic, ollama, deepseek, qwen
+    model: "qwen3-max"
     temperature: 0.5
     max_tokens: 16000
     # API keys can be set via environment variables:
-    # OPENAI_API_KEY, ANTHROPIC_API_KEY, DEEPSEEK_API_KEY
+    # OPENAI_API_KEY, ANTHROPIC_API_KEY, DEEPSEEK_API_KEY, QWEN_API_KEY
 
   # Iteration settings
   max_iterations: 20

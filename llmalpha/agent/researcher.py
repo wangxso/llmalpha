@@ -120,7 +120,6 @@ class AlphaResearcher:
         if self._reporter is None and self.immersive:
             from llmalpha.agent.ui.exploration import ExplorationReporter
             self._reporter = ExplorationReporter()
-
         if self._loop is None:
             self._loop = ResearchLoop(
                 config=self.config,
@@ -333,12 +332,12 @@ Please improve this hypothesis to achieve better performance.
 
 
 def create_researcher(
-    provider: str = "openai",
-    model: str = "gpt-5.2",
+    provider: Optional[str] = None,
+    model: Optional[str] = None,
     api_key: Optional[str] = None,
     base_url: Optional[str] = None,
-    data_dir: str = "data",
-    db_path: str = "data/knowledge.db",
+    data_dir: Optional[str] = None,
+    db_path: Optional[str] = None,
     auto_download_data: bool = True,
     immersive: bool = True,
     **kwargs,
@@ -347,34 +346,53 @@ def create_researcher(
     Factory function to create a researcher with common settings.
 
     Args:
-        provider: LLM provider (openai, anthropic, ollama)
-        model: Model name
-        api_key: API key (or use environment variable)
-        base_url: Custom API base URL (for third-party proxies)
-        data_dir: Data directory
-        db_path: Knowledge base path
+        provider: LLM provider (openai, anthropic, ollama, deepseek, qwen). If None, loads from config file.
+        model: Model name. If None, loads from config file.
+        api_key: API key (or use environment variable). If None, loads from config file.
+        base_url: Custom API base URL (for third-party proxies). If None, loads from config file.
+        data_dir: Data directory. If None, loads from config file.
+        db_path: Knowledge base path. If None, loads from config file.
         auto_download_data: If True, automatically download data when needed
         immersive: If True, enable immersive exploration UI
-        **kwargs: Additional config options
+        **kwargs: Additional config options (override config file values)
 
     Returns:
         Configured AlphaResearcher
     """
     from llmalpha.agent.config import AgentConfig, LLMConfig
+    from llmalpha.config import find_config_file
 
-    llm_config = LLMConfig(
-        provider=provider,
-        model=model,
-        api_key=api_key,
-        base_url=base_url,
-    )
+    # Try to load config from YAML file
+    config_path = find_config_file()
+    if config_path:
+        config = AgentConfig.from_yaml(config_path)
+    else:
+        config = AgentConfig()
 
-    config = AgentConfig(
-        llm=llm_config,
-        data_dir=data_dir,
-        db_path=db_path,
-        **kwargs,
-    )
+    # Override LLM settings if provided (command line args take precedence)
+    if provider is not None or model is not None or api_key is not None or base_url is not None:
+        llm_config = LLMConfig(
+            provider=provider if provider is not None else config.llm.provider,
+            model=model if model is not None else config.llm.model,
+            api_key=api_key if api_key is not None else config.llm.api_key,
+            base_url=base_url if base_url is not None else config.llm.base_url,
+            temperature=config.llm.temperature,
+            max_tokens=config.llm.max_tokens,
+        )
+        config.llm = llm_config
+
+    # Override other settings if provided
+    if data_dir is not None:
+        config.data_dir = data_dir
+    if db_path is not None:
+        config.db_path = db_path
+
+    # Apply any additional kwargs (these override config file values)
+    # Create a new config object from dict to ensure proper type validation
+    if kwargs:
+        config_dict = config.model_dump()
+        config_dict.update(kwargs)
+        config = AgentConfig(**config_dict)
 
     # Initialize knowledge service if db exists
     knowledge = None
