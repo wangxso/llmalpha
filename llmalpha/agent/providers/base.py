@@ -202,8 +202,6 @@ def get_provider(
     Raises:
         ValueError: If provider is not supported
     """
-    print(provider_name, model, api_key, base_url, kwargs)
-    print("--------------------------------")
     if provider_name == "openai":
         from llmalpha.agent.providers.openai import OpenAIProvider
         return OpenAIProvider(model=model, api_key=api_key, **kwargs)
